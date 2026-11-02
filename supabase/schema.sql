@@ -1,5 +1,6 @@
 -- Kalori uygulaması veritabanı şeması
 -- Supabase panelinde: SQL Editor > New query > bu dosyanın tamamını yapıştır > Run
+-- Sonra aynı klasördeki 02_weight.sql dosyasını da aynı şekilde çalıştır.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,

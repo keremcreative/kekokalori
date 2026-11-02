@@ -6,6 +6,9 @@ import { addLogs, authHeader, getRecentFoods, type LogEntry } from "@/lib/db";
 import { FOODS, searchFoods, type Food } from "@/lib/foods";
 import { MEALS, fmt, guessMeal, scale, todayStr, type Meal, type Nutrients } from "@/lib/nutrition";
 import { resizeImage } from "@/lib/image";
+import { PHOTO_PROMPT, parseAiItems } from "@/lib/importAi";
+import { AI_APPS, copyText } from "@/lib/share";
+import { useAiEnabled } from "@/components/useAiEnabled";
 
 type CartItem = {
   key: string;
@@ -109,7 +112,7 @@ function Add() {
         ))}
       </div>
 
-      {tab === "photo" && <PhotoTab onAdd={addToCart} />}
+      {tab === "photo" && <PhotoArea onAdd={addToCart} />}
       {tab === "list" && <ListTab onAdd={addToCart} />}
       {tab === "custom" && <CustomTab onAdd={addToCart} />}
 
@@ -178,6 +181,101 @@ function CartRow({
         {item.note && <span className="block text-stone-400">{item.note}</span>}
       </div>
     </li>
+  );
+}
+
+function PhotoArea({ onAdd }: { onAdd: (items: Omit<CartItem, "key">[]) => void }) {
+  const aiEnabled = useAiEnabled();
+  const [own, setOwn] = useState(false);
+  if (aiEnabled === null) return <p className="text-sm text-stone-400">Yükleniyor…</p>;
+  if (!aiEnabled) return <OwnAiPanel onAdd={onAdd} />;
+  return (
+    <div className="space-y-2">
+      {own ? <OwnAiPanel onAdd={onAdd} /> : <PhotoTab onAdd={onAdd} />}
+      <button onClick={() => setOwn(!own)} className="w-full text-center text-sm text-stone-500 underline">
+        {own ? "Uygulamanın kendi analizini kullan" : "veya kendi yapay zekânla (ChatGPT, Gemini, Claude) analiz et"}
+      </button>
+    </div>
+  );
+}
+
+function OwnAiPanel({ onAdd }: { onAdd: (items: Omit<CartItem, "key">[]) => void }) {
+  const [answer, setAnswer] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function copyPrompt() {
+    if (await copyText(PHOTO_PROMPT)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  }
+
+  function importAnswer() {
+    setError(null);
+    try {
+      const items = parseAiItems(answer);
+      onAdd(items.map((i) => ({ ...i, source: "photo" as const })));
+      setAnswer("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  return (
+    <section className="card space-y-4">
+      <div>
+        <h2 className="font-semibold">Kendi yapay zekânla fotoğraf analizi</h2>
+        <p className="mt-1 text-sm text-stone-600">Kullandığın yapay zekâ fotoğrafı analiz etsin, sonucu buraya yapıştır.</p>
+      </div>
+      <ol className="space-y-3 text-sm">
+        <li>
+          <p className="mb-2">
+            <b>1.</b> Komutu kopyala ve yapay zekânı aç (düğmeler komutu kopyalayıp açar):
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={copyPrompt} className="btn-primary col-span-3 text-sm">
+              {copied ? "✓ Komut kopyalandı" : "📋 Komutu kopyala"}
+            </button>
+            {AI_APPS.map((a) => (
+              <a
+                key={a.name}
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => {
+                  copyPrompt();
+                }}
+                className="btn-secondary px-2 text-center text-sm"
+              >
+                {a.name} ↗
+              </a>
+            ))}
+          </div>
+        </li>
+        <li>
+          <b>2.</b> Orada komutu yapıştır, yemeğin fotoğrafını ekle ve gönder. İstersen &quot;2 yumurta, yarım ekmek&quot; gibi
+          bir not da yaz.
+        </li>
+        <li>
+          <p className="mb-2">
+            <b>3.</b> Gelen cevabın tamamını kopyalayıp buraya yapıştır:
+          </p>
+          <textarea
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            rows={4}
+            placeholder='[{"name": "Menemen", "grams": 200, ...}]'
+            className="input font-mono text-xs"
+          />
+        </li>
+      </ol>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <button onClick={importAnswer} disabled={!answer.trim()} className="btn-primary w-full">
+        Listeye ekle
+      </button>
+      <p className="text-xs text-stone-500">Kaydetmeden önce gramları aşağıdaki listede kontrol edebilirsin.</p>
+    </section>
   );
 }
 
