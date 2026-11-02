@@ -39,3 +39,8 @@ create policy "own profile" on public.profiles
 drop policy if exists "own logs" on public.food_logs;
 create policy "own logs" on public.food_logs
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Uygulamanın tablolara erişimi (Supabase'de "Automatically expose new tables" kapalıysa da çalışsın diye)
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.profiles to authenticated;
+grant select, insert, update, delete on public.food_logs to authenticated;
