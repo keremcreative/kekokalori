@@ -15,6 +15,11 @@ Kendin ve arkadaşların için kalori, makro ve mikro besin takip uygulaması. T
 - **Günlük özet:** Kalan kalori, makrolar, su, 12 mikro besin (lif, şeker, sodyum, demir, kalsiyum, vitaminler...),
   öğün bazında liste, son 7 gün grafiği.
 - **Öneriler:** Günün durumuna göre otomatik ipuçları ve isteğe bağlı yapay zekâ koçu.
+- **Kilo takibi:** Her gün için kilo kaydı. En yeni kilo profile işlenir, hedefler ona göre yeniden hesaplanır.
+- **Haftalık rapor:** Son 7 günün özeti (profil, hedefler, kilo, günlük toplamlar, yenenler). Tek dokunuşla
+  kopyalanıp ChatGPT, Gemini veya Claude'a yapıştırılır, yapay zekâ neyi azaltıp neyi artırman gerektiğini söyler.
+- **API anahtarı olmadan da çalışır:** `ANTHROPIC_API_KEY` yoksa fotoğraf analizi "kendi yapay zekânla" moduna geçer:
+  hazır komutu kopyalayıp fotoğrafla birlikte kendi yapay zekâna gönderirsin, cevabı uygulamaya yapıştırırsın.
 - **Çok kullanıcılı:** Herkes kendi hesabıyla girer, kimse başkasının verisini göremez.
 
 ## Kurulum (bir kerelik, ~15 dakika)
@@ -23,15 +28,16 @@ Kendin ve arkadaşların için kalori, makro ve mikro besin takip uygulaması. T
 
 1. [supabase.com](https://supabase.com) üzerinde hesap aç ve **New project** oluştur (bölge olarak Frankfurt seçebilirsin).
 2. Sol menüden **SQL Editor > New query**, [`supabase/schema.sql`](supabase/schema.sql) dosyasının tamamını yapıştır ve **Run**.
+   Ardından [`supabase/02_weight.sql`](supabase/02_weight.sql) için de aynısını yap.
 3. **Project Settings > API** sayfasından `Project URL` ve `anon public` anahtarını kopyala.
 4. **Authentication > URL Configuration** sayfasında **Site URL** alanına uygulamanın adresini yaz
    (Vercel'e yükledikten sonra, ör. `https://kalori-xxx.vercel.app`). E-posta onay linkleri bu adrese gider.
 
-### 2. Anthropic API anahtarı (fotoğraf analizi için)
+### 2. Anthropic API anahtarı (isteğe bağlı)
 
 [console.anthropic.com](https://console.anthropic.com) üzerinden bir API anahtarı oluştur ve biraz kredi yükle.
-Bir fotoğraf analizi birkaç kuruş tutar. Bu adımı atlarsan uygulama çalışır, sadece fotoğraf analizi ve yapay zekâ
-koçu kapalı olur.
+Bir fotoğraf analizi birkaç sent tutar. Claude/ChatGPT aboneliği API kullanımını kapsamaz. Bu adımı atlarsan
+uygulama "kendi yapay zekânla" moduyla çalışır.
 
 ### 3. Vercel'e yükleme (ücretsiz)
 

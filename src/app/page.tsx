@@ -4,7 +4,9 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Bar from "@/components/Bar";
+import { useAuth } from "@/components/AuthProvider";
 import { useProfile } from "@/components/ProfileProvider";
+import { useAiEnabled } from "@/components/useAiEnabled";
 import { buildTips } from "@/lib/advice";
 import {
   addLogs,
@@ -13,6 +15,8 @@ import {
   entryTotals,
   getDailyKcal,
   getLogs,
+  getWeights,
+  saveWeight,
   updateLogGrams,
   type LogEntry,
 } from "@/lib/db";
@@ -37,7 +41,9 @@ export default function TodayPage() {
 }
 
 function Today() {
-  const { profile, loading } = useProfile();
+  const { profile, loading, reload: reloadProfile } = useProfile();
+  const { userId } = useAuth();
+  const aiEnabled = useAiEnabled();
   const params = useSearchParams();
   const [date, setDate] = useState(() => {
     const d = params.get("date");
@@ -45,6 +51,7 @@ function Today() {
   });
   const [logs, setLogs] = useState<LogEntry[] | null>(null);
   const [week, setWeek] = useState<Record<string, number>>({});
+  const [weight, setWeight] = useState<{ date: string; kg: number | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [version, setVersion] = useState(0);
@@ -52,6 +59,9 @@ function Today() {
 
   useEffect(() => {
     let cancelled = false;
+    getWeights(date, date)
+      .then((ws) => !cancelled && setWeight({ date, kg: ws[0]?.weight_kg ?? null }))
+      .catch(() => !cancelled && setWeight({ date, kg: null }));
     Promise.all([getLogs(date), getDailyKcal(shiftDate(date, -6), date)])
       .then(([l, w]) => {
         if (cancelled) return;
@@ -152,6 +162,18 @@ function Today() {
         </div>
       </section>
 
+      {weight && weight.date === date && (
+        <WeightCard
+          key={date}
+          initial={weight.kg}
+          onSave={async (kg) => {
+            const updatedProfile = await saveWeight(userId, date, kg);
+            setWeight({ date, kg });
+            if (updatedProfile) await reloadProfile();
+          }}
+        />
+      )}
+
       <section className="card flex items-center gap-3">
         <span className="text-2xl">💧</span>
         <div className="flex-1">
@@ -180,7 +202,7 @@ function Today() {
               </li>
             ))}
           </ul>
-          {food.length > 0 && (
+          {food.length > 0 && aiEnabled && (
             <AiCoach
               key={date}
               payload={{
@@ -255,6 +277,54 @@ function Today() {
 
       <WeekChart week={week} end={date} target={t.kcal} />
     </div>
+  );
+}
+
+function WeightCard({ initial, onSave }: { initial: number | null; onSave: (kg: number) => Promise<void> }) {
+  const [value, setValue] = useState(initial === null ? "" : String(initial));
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const kg = Number(value.replace(",", "."));
+  const valid = value !== "" && kg >= 20 && kg <= 400;
+  const dirty = valid && kg !== initial;
+
+  async function save() {
+    setState("saving");
+    try {
+      await onSave(Math.round(kg * 10) / 10);
+      setState("saved");
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <section className="card flex items-center gap-3">
+      <span className="text-2xl">⚖️</span>
+      <div className="flex-1">
+        <p className="text-sm font-medium">Kilo</p>
+        <p className="text-xs text-stone-500">
+          {state === "error"
+            ? "Kaydedilemedi, tekrar dene."
+            : initial === null && state !== "saved"
+              ? "Bu gün için kayıt yok"
+              : "Kaydedildi"}
+        </p>
+      </div>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setState("idle");
+        }}
+        placeholder="kg"
+        className="input w-20 py-1.5 text-right"
+      />
+      <button onClick={save} disabled={!dirty || state === "saving"} className="btn-primary px-3 py-1.5 text-sm">
+        {state === "saving" ? "…" : "Kaydet"}
+      </button>
+    </section>
   );
 }
 

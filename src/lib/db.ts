@@ -103,3 +103,45 @@ export async function authHeader(): Promise<Record<string, string>> {
   const token = data.session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
+
+export async function getLogsRange(from: string, to: string): Promise<LogEntry[]> {
+  const { data, error } = await supabase()
+    .from("food_logs")
+    .select("id, eaten_on, meal, name, grams, per100, source, created_at")
+    .gte("eaten_on", from)
+    .lte("eaten_on", to)
+    .order("eaten_on")
+    .order("created_at");
+  if (error) throw error;
+  return (data ?? []) as LogEntry[];
+}
+
+export type WeightEntry = { logged_on: string; weight_kg: number };
+
+export async function getWeights(from: string, to: string): Promise<WeightEntry[]> {
+  const { data, error } = await supabase()
+    .from("weight_logs")
+    .select("logged_on, weight_kg")
+    .gte("logged_on", from)
+    .lte("logged_on", to)
+    .order("logged_on");
+  if (error) throw error;
+  return (data ?? []) as WeightEntry[];
+}
+
+/** Kiloyu kaydeder. Bugünün (veya en yeni) kaydıysa profildeki kiloyu da günceller ki hedefler yeniden hesaplansın. */
+export async function saveWeight(userId: string, date: string, kg: number): Promise<boolean> {
+  const sb = supabase();
+  const { error } = await sb
+    .from("weight_logs")
+    .upsert({ user_id: userId, logged_on: date, weight_kg: kg }, { onConflict: "user_id,logged_on" });
+  if (error) throw error;
+  const { data: newer } = await sb.from("weight_logs").select("logged_on").gt("logged_on", date).limit(1);
+  if (newer && newer.length > 0) return false;
+  const { error: pErr } = await sb
+    .from("profiles")
+    .update({ weight_kg: kg, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+  if (pErr) throw pErr;
+  return true;
+}
